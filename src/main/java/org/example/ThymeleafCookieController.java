@@ -12,13 +12,10 @@ import jakarta.servlet.annotation.WebServlet;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 
 @WebServlet("/thymeleafCookie")
 public class ThymeleafCookieController extends HttpServlet {
@@ -39,22 +36,24 @@ public class ThymeleafCookieController extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         resp.setContentType("text/html");
         Map<String, Object> params = new LinkedHashMap<>();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
-        /*String timezone;
-        if(req.getParameter("timezone") != null){
-            timezone = req.getParameter("timezone");
-        } else {
-            timezone = TimeZone.getDefault().toZoneId().toString();
-        }
-        ZonedDateTime time = ZonedDateTime.now(ZoneId.of(timezone));
-        String formattedTime = time.format(formatter);*/
         String timezone = req.getParameter("timezone");
-        ZoneOffset zoneOffset;
+        ZoneOffset zoneOffset = null;
         if(req.getParameter("timezone") != null){
+            //setting timezone from parameters
             zoneOffset = ZoneOffset.of(timezone);
+        }else if(hasCookieTimezone(req)){
+            Cookie[] cookies = req.getCookies();
+            for (Cookie cookie : cookies) {
+                if(String.valueOf(cookie.getName()).equals("timezone")){
+                    zoneOffset = ZoneOffset.of(String.valueOf(cookie.getValue()));
+                }
+            }
         }else{
-            zoneOffset = ZoneOffset.of(req.getParameter("UTC"));
+            //setting UTC timezone
+            zoneOffset = ZoneOffset.of("Z");
         }
+        //formatting time
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
         String formattedTime = OffsetDateTime.now(zoneOffset).format(formatter);
 
         params.put("time",formattedTime);
@@ -63,9 +62,17 @@ public class ThymeleafCookieController extends HttpServlet {
                 req.getLocale(),
                 params
         );
-        engine.process("time", simpleContext, resp.getWriter());
+        engine.process("cookieTime", simpleContext, resp.getWriter());
         //saving last used timezone to cookies
         resp.addCookie(new Cookie("lastTimezone", timezone));
         resp.getWriter().close();
+    }
+
+    private boolean hasCookieTimezone(HttpServletRequest req){
+        Cookie[] cookies = req.getCookies();
+        for(Cookie cookie : cookies){
+            if(String.valueOf(cookie.getName()).equals("timezone")) return true;
+        }
+        return false;
     }
 }
